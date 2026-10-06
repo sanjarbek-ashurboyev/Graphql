@@ -1,5 +1,7 @@
 # Graphql
 
+[![Tests](https://github.com/sanjarbek-ashurboyev/Graphql/actions/workflows/tests.yml/badge.svg)](https://github.com/sanjarbek-ashurboyev/Graphql/actions/workflows/tests.yml)
+
 A GraphQL API built with Django and Graphene-Django: queries and full create, update and
 delete mutations for products and their categories, with the GraphiQL explorer built in.
 
