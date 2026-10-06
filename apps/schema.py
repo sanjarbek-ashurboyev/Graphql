@@ -23,6 +23,9 @@ class Query(graphene.ObjectType):
     def resolve_all_categories(self, info):
         return Category.objects.all()
 
+    def resolve_all_products(self, info):
+        return Product.objects.select_related('category')
+
 
 class CreateCategory(graphene.Mutation):
     message = graphene.String()
@@ -33,7 +36,7 @@ class CreateCategory(graphene.Mutation):
 
     def mutate(self, info, title):
         Category.objects.create(title=title)
-        return CreateCategory(message = "Yaratildi", status=201)
+        return CreateCategory(message="Yaratildi", status=201)
 
 
 class CreateProduct(graphene.Mutation):
@@ -47,10 +50,10 @@ class CreateProduct(graphene.Mutation):
         category = graphene.Int(required=True)
 
     def mutate(self, info, title, price, stock, category):
-        Category.objects.create(title=title, price=price, stock=stock, category=category)
-        return CreateCategory(message="Yaratildi", status=201)
-
-
+        if not Category.objects.filter(pk=category).exists():
+            return CreateProduct(message="Category topilmadi", status=404)
+        Product.objects.create(title=title, price=price, stock=stock, category_id=category)
+        return CreateProduct(message="Yaratildi", status=201)
 
 
 class UpdateCategory(graphene.Mutation):
@@ -62,11 +65,12 @@ class UpdateCategory(graphene.Mutation):
         title = graphene.String()
 
     def mutate(self, info, id, title=None):
-        category = Category.objects.get(pk=id)
-        if title:
+        category = Category.objects.filter(pk=id).first()
+        if category is None:
+            return UpdateCategory(message="Category topilmadi", status=404)
+        if title is not None:
             category.title = title
-
-        category.save()
+            category.save(update_fields=['title'])
         return UpdateCategory(message="Category o'zgartirildi", status=200)
 
 
@@ -81,20 +85,24 @@ class UpdateProduct(graphene.Mutation):
         stock = graphene.Int()
         category = graphene.Int()
 
-
     def mutate(self, info, id, title=None, price=None, category=None, stock=None):
-        product = Product.objects.get(pk=id)
-        if title:
+        product = Product.objects.filter(pk=id).first()
+        if product is None:
+            return UpdateProduct(message="Product topilmadi", status=404)
+        # `is not None`, not truthiness: stock=0 and price=0 are valid updates.
+        if title is not None:
             product.title = title
-        if price:
+        if price is not None:
             product.price = price
-        if category:
-            product.category = category
-        if stock:
+        if stock is not None:
             product.stock = stock
-
+        if category is not None:
+            if not Category.objects.filter(pk=category).exists():
+                return UpdateProduct(message="Category topilmadi", status=404)
+            product.category_id = category
         product.save()
         return UpdateProduct(message="Product o'zgartirildi", status=200)
+
 
 class DeleteCategory(graphene.Mutation):
     message = graphene.String()
@@ -104,10 +112,10 @@ class DeleteCategory(graphene.Mutation):
         id = graphene.Int(required=True)
 
     def mutate(self, info, id):
-        query = Category.objects.filter(pk=id)
-        if query.exists():
-            query.delete()
-        return UpdateCategory(message="Post o'chirildi", status=200)
+        deleted, _ = Category.objects.filter(pk=id).delete()
+        if not deleted:
+            return DeleteCategory(message="Category topilmadi", status=404)
+        return DeleteCategory(message="Category o'chirildi", status=200)
 
 
 class DeleteProduct(graphene.Mutation):
@@ -118,10 +126,10 @@ class DeleteProduct(graphene.Mutation):
         id = graphene.Int(required=True)
 
     def mutate(self, info, id):
-        query = Product.objects.filter(pk=id)
-        if query.exists():
-            query.delete()
-        return UpdateProduct(message="Post o'chirildi", status=200)
+        deleted, _ = Product.objects.filter(pk=id).delete()
+        if not deleted:
+            return DeleteProduct(message="Product topilmadi", status=404)
+        return DeleteProduct(message="Product o'chirildi", status=200)
 
 
 class Mutation(graphene.ObjectType):
